@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gesture Quiz Battle - Sistem Pernapasan Manusia</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- MediaPipe Hands CDN Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    body {
+      font-family: 'Rajdhani', sans-serif;
+      background-color: #060913;
+      color: #ffffff;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .font-orbitron {
+      font-family: 'Orbitron', sans-serif;
+    }
+
+    /* Glow Effects */
+    .glow-blue {
+      text-shadow: 0 0 12px rgba(0, 210, 255, 0.8), 0 0 25px rgba(0, 210, 255, 0.5);
+    }
+    .glow-red {
+      text-shadow: 0 0 12px rgba(255, 43, 91, 0.8), 0 0 25px rgba(255, 43, 91, 0.5);
+    }
+    .glow-gold {
+      text-shadow: 0 0 15px rgba(251, 191, 36, 0.9), 0 0 30px rgba(245, 158, 11, 0.6);
+    }
+
+    .box-glow-blue {
+      box-shadow: 0 0 20px rgba(0, 210, 255, 0.3), inset 0 0 15px rgba(0, 210, 255, 0.15);
+    }
+    .box-glow-red {
+      box-shadow: 0 0 20px rgba(255, 43, 91, 0.3), inset 0 0 15px rgba(255, 43, 91, 0.15);
+    }
+
+    #gameCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+    }
+
+    #webcam {
+      display: none;
+    }
+
+    .glass-card {
+      background: rgba(13, 19, 33, 0.82);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .option-card {
+      transition: all 0.25s ease;
+    }
+    .option-correct {
+      background: rgba(16, 185, 129, 0.35) !important;
+      border-color: #10b981 !important;
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.6);
+    }
+  </style>
+</head>
+<body class="h-screen w-screen relative bg-slate-950 flex flex-col justify-between overflow-hidden">
+
+  <!-- HIDDEN WEBCAM FEED -->
+  <video id="webcam" playsinline autoplay muted></video>
+
+  <!-- OVERLAY CANVAS -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- TOP HEADER / SCOREBOARD & TEAM SHOOTER STATUS -->
+  <header class="relative z-20 w-full px-5 py-2 glass-card border-b border-slate-800 flex justify-between items-center shadow-2xl">
+    
+    <!-- TEAM A (LEFT - BLUE) -->
+    <div class="flex items-center gap-4 w-1/3">
+      <div class="p-2.5 bg-cyan-950/90 border border-cyan-500/60 rounded-xl box-glow-blue flex flex-col items-center min-w-[120px]">
+        <span class="text-xs uppercase tracking-widest text-cyan-400 font-bold">TIM A (KIRI)</span>
+        <span id="scoreA" class="text-4xl font-black font-orbitron text-cyan-300 glow-blue">0</span>
+      </div>
+      
+      <div class="flex flex-col flex-grow max-w-[200px]">
+        <span class="text-xs text-slate-400 uppercase font-semibold">Status Tembakan:</span>
+        <div class="flex items-center justify-between bg-slate-900/90 border border-cyan-500/40 px-3 py-1.5 rounded-lg mt-0.5">
+          <span id="detectedStatusA" class="text-xs font-bold font-orbitron text-cyan-300">ARAHKAN KANUT</span>
+          <span id="triggerA" class="text-xs font-bold px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/30">🔫 READY</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER QUESTION NUMBER & STATUS -->
+    <div class="flex flex-col items-center justify-center w-1/3 text-center">
+      <span class="text-xs text-slate-400 font-orbitron tracking-widest uppercase">GESTURE SHOOTER KUIS</span>
+      <div class="flex items-center gap-2 mt-0.5">
+        <span class="text-xs text-cyan-400 font-bold">SOAL</span>
+        <span id="questionNum" class="text-2xl font-black font-orbitron text-amber-300 glow-gold">1 / 15</span>
+      </div>
+      <div id="roundFeedback" class="text-xs font-bold font-orbitron text-slate-300 mt-1 min-h-[18px]">
+        Bentuk Tangan Pistol 🫵 lalu Tembak ke Jawaban yang Benar!
+      </div>
+    </div>
+
+    <!-- TEAM B (RIGHT - RED) -->
+    <div class="flex items-center justify-end gap-4 w-1/3 text-right">
+      <div class="flex flex-col flex-grow max-w-[200px] items-end">
+        <span class="text-xs text-slate-400 uppercase font-semibold">Status Tembakan:</span>
+        <div class="flex items-center justify-between w-full bg-slate-900/90 border border-rose-500/40 px-3 py-1.5 rounded-lg mt-0.5">
+          <span id="triggerB" class="text-xs font-bold px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-500/30">🔫 READY</span>
+          <span id="detectedStatusB" class="text-xs font-bold font-orbitron text-rose-300">ARAHKAN KANUT</span>
+        </div>
+      </div>
+
+      <div class="p-2.5 bg-rose-950/90 border border-rose-500/60 rounded-xl box-glow-red flex flex-col items-center min-w-[120px]">
+        <span class="text-xs uppercase tracking-widest text-rose-400 font-bold">TIM B (KANAN)</span>
+        <span id="scoreB" class="text-4xl font-black font-orbitron text-rose-300 glow-red">0</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- CENTER QUESTION CARD OVERLAY -->
+  <main class="relative z-20 mx-auto w-full max-w-4xl px-4 my-auto">
+    <div id="quizContainer" class="glass-card p-6 rounded-2xl border border-slate-700 shadow-2xl relative overflow-hidden transition-all duration-300">
+      
+      <!-- QUESTION TEXT -->
+      <div class="mb-5 pb-4 border-b border-slate-800">
+        <h2 id="questionText" class="text-xl md:text-2xl font-bold text-white text-center leading-relaxed">
+          1. Organ utama yang digunakan oleh manusia untuk bernapas adalah...
+        </h2>
+      </div>
+
+      <!-- 4 OPTIONS GRID TARGETS -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- OPTION A -->
+        <div id="optContainerA" class="option-card flex items-center p-4 bg-slate-900/90 border border-slate-700 rounded-xl relative">
+          <span class="flex-shrink-0 w-10 h-10 bg-cyan-950 border border-cyan-500/50 text-cyan-300 font-black font-orbitron rounded-lg flex items-center justify-center mr-3 text-sm">
+            🎯 A
+          </span>
+          <span id="optTextA" class="text-base font-semibold text-slate-200">A. Jantung</span>
+        </div>
+
+        <!-- OPTION B -->
+        <div id="optContainerB" class="option-card flex items-center p-4 bg-slate-900/90 border border-slate-700 rounded-xl relative">
+          <span class="flex-shrink-0 w-10 h-10 bg-cyan-950 border border-cyan-500/50 text-cyan-300 font-black font-orbitron rounded-lg flex items-center justify-center mr-3 text-sm">
+            🎯 B
+          </span>
+          <span id="optTextB" class="text-base font-semibold text-slate-200">B. Paru-paru</span>
+        </div>
+
+        <!-- OPTION C -->
+        <div id="optContainerC" class="option-card flex items-center p-4 bg-slate-900/90 border border-slate-700 rounded-xl relative">
+          <span class="flex-shrink-0 w-10 h-10 bg-cyan-950 border border-cyan-500/50 text-cyan-300 font-black font-orbitron rounded-lg flex items-center justify-center mr-3 text-sm">
+            🎯 C
+          </span>
+          <span id="optTextC" class="text-base font-semibold text-slate-200">C. Lambung</span>
+        </div>
+
+        <!-- OPTION D -->
+        <div id="optContainerD" class="option-card flex items-center p-4 bg-slate-900/90 border border-slate-700 rounded-xl relative">
+          <span class="flex-shrink-0 w-10 h-10 bg-cyan-950 border border-cyan-500/50 text-cyan-300 font-black font-orbitron rounded-lg flex items-center justify-center mr-3 text-sm">
+            🎯 D
+          </span>
+          <span id="optTextD" class="text-base font-semibold text-slate-200">D. Hati</span>
+        </div>
+      </div>
+
+      <!-- ANSWER EXPLANATION BANNER -->
+      <div id="explanationBanner" class="hidden mt-4 p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-center text-emerald-300 font-semibold text-sm">
+        <i class="fa-solid fa-circle-check mr-2 text-emerald-400"></i>
+        <span id="explanationText">Jawaban Benar: B (Paru-paru)</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- CAMERA PERMISSION / LOADING BANNER -->
+  <div id="cameraStatusOverlay" class="absolute inset-0 z-30 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center gap-4 text-center px-6">
+    <div id="cameraSpinner" class="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+    <div id="cameraErrorIcon" class="hidden text-5xl text-rose-500 mb-1"><i class="fa-solid fa-video-slash"></i></div>
+    <h2 id="cameraStatusText" class="text-2xl font-bold font-orbitron text-cyan-400">Menginisialisasi Kamera...</h2>
+    <p id="cameraStatusSubtext" class="text-slate-400 max-w-md text-sm">
+      Mohon izinkan akses kamera pada browser Anda. Bentuk jari menjadi pistol 🫵 lalu jepit jempol ke bawah untuk menembak!
+    </p>
+    <button id="btnStartAnyway" onclick="startSimulatedMode()" class="mt-2 px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 font-bold rounded-lg shadow-lg text-white font-orbitron text-sm transition">
+      Mulai Tanpa Kamera (Gunakan Simulasi Klik Tembak)
+    </button>
+  </div>
+
+  <!-- BOTTOM CONTROL BAR / SIMULATION SHOOTER BUTTONS -->
+  <footer class="relative z-20 w-full px-5 py-3 glass-card border-t border-slate-800 flex flex-wrap justify-between items-center gap-2">
+    
+    <!-- TIM A SIMULATION -->
+    <div class="flex items-center gap-1.5">
+      <span class="text-xs text-cyan-400 font-bold uppercase mr-1">Tembak Tim A:</span>
+      <button onclick="simulateShoot('LEFT', 'A')" class="px-2.5 py-1.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-xs font-semibold rounded transition">💥 Tembak A</button>
+      <button onclick="simulateShoot('LEFT', 'B')" class="px-2.5 py-1.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-xs font-semibold rounded transition">💥 Tembak B</button>
+      <button onclick="simulateShoot('LEFT', 'C')" class="px-2.5 py-1.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-xs font-semibold rounded transition">💥 Tembak C</button>
+      <button onclick="simulateShoot('LEFT', 'D')" class="px-2.5 py-1.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-xs font-semibold rounded transition">💥 Tembak D</button>
+    </div>
+
+    <!-- CENTER CONTROLS -->
+    <div class="flex items-center gap-3">
+      <button onclick="resetQuiz()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold font-orbitron text-xs rounded flex items-center gap-2 transition">
+        <i class="fa-solid fa-rotate-right"></i> RESET KUIS
+      </button>
+      <button onclick="initCamera()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-bold font-orbitron text-xs rounded flex items-center gap-2 transition">
+        <i class="fa-solid fa-camera"></i> RESTART CAM
+      </button>
+    </div>
+
+    <!-- TIM B SIMULATION -->
+    <div class="flex items-center gap-1.5">
+      <span class="text-xs text-rose-400 font-bold uppercase mr-1">Tembak Tim B:</span>
+      <button onclick="simulateShoot('RIGHT', 'A')" class="px-2.5 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-xs font-semibold rounded transition">💥 Tembak A</button>
+      <button onclick="simulateShoot('RIGHT', 'B')" class="px-2.5 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-xs font-semibold rounded transition">💥 Tembak B</button>
+      <button onclick="simulateShoot('RIGHT', 'C')" class="px-2.5 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-xs font-semibold rounded transition">💥 Tembak C</button>
+      <button onclick="simulateShoot('RIGHT', 'D')" class="px-2.5 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-xs font-semibold rounded transition">💥 Tembak D</button>
+    </div>
+  </footer>
+
+  <!-- GAME OVER MODAL OVERLAY -->
+  <div id="gameOverModal" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-lg flex flex-col items-center justify-center p-6">
+    <div class="glass-card max-w-lg w-full p-8 rounded-2xl border border-slate-700 flex flex-col items-center text-center shadow-2xl relative overflow-hidden">
+      <div id="winnerText" class="text-3xl md:text-4xl font-black font-orbitron mb-2 tracking-wider">TIM KIRI MENANG!</div>
+      <p class="text-slate-400 text-sm mb-6">Seluruh Soal Sistem Pernapasan telah Selesai</p>
+
+      <div class="grid grid-cols-2 gap-4 w-full mb-8">
+        <div class="p-4 bg-cyan-950/60 border border-cyan-500/40 rounded-xl flex flex-col">
+          <span class="text-xs text-cyan-400 font-bold uppercase">Skor Tim A (Kiri)</span>
+          <span id="finalScoreA" class="text-4xl font-black font-orbitron text-cyan-300">0</span>
+        </div>
+        <div class="p-4 bg-rose-950/60 border border-rose-500/40 rounded-xl flex flex-col">
+          <span class="text-xs text-rose-400 font-bold uppercase">Skor Tim B (Kanan)</span>
+          <span id="finalScoreB" class="text-4xl font-black font-orbitron text-rose-300">0</span>
+        </div>
+      </div>
+
+      <button onclick="resetQuiz()" class="w-full py-3.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 font-black font-orbitron text-slate-950 text-base rounded-xl shadow-[0_0_25px_rgba(245,158,11,0.5)] transition transform hover:scale-[1.02]">
+        <i class="fa-solid fa-play mr-2"></i> MAIN KEMBALI
+      </button>
+    </div>
+  </div>
+
+  <!-- GAME LOGIC JAVASCRIPT -->
+  <script>
+    const QUIZ_QUESTIONS = [
+      {
+        question: "1. Organ utama yang digunakan oleh manusia untuk bernapas adalah...",
+        options: { A: "Jantung", B: "Paru-paru", C: "Lambung", D: "Hati" },
+        answer: "B",
+        explanation: "Jawaban Benar: B (Paru-paru)"
+      },
+      {
+        question: "2. Bagian tenggorokan yang menjadi persimpangan antara saluran pernapasan di depan dan saluran pencernaan di belakang dinamakan...",
+        options: { A: "Laring", B: "Faring", C: "Bronkiolus", D: "Epiglottis" },
+        answer: "B",
+        explanation: "Jawaban Benar: B (Faring)"
+      },
+      {
+        question: "3. Katup kecil di tenggorokan yang berfungsi menutup saluran pernapasan saat kita menelan makanan agar tidak tersedak adalah...",
+        options: { A: "Diafragma", B: "Epiglottis", C: "Alveolus", D: "Pleura" },
+        answer: "B",
+        explanation: "Jawaban Benar: B (Epiglottis)"
+      },
+      {
+        question: "4. Selain menyaring kotoran, rongga hidung juga memiliki fungsi penting lainnya, yaitu...",
+        options: { A: "Mengubah gas oksigen jadi racun", B: "Menyesuaikan suhu & kelembapan udara", C: "Menyerap CO2 secara langsung", D: "Memompa udara masuk ke perut" },
+        answer: "B",
+        explanation: "Jawaban Benar: B (Menyesuaikan suhu dan kelembapan udara)"
+      },
+      {
+        question: "5. Lapisan selaput tipis yang berfungsi membungkus dan melindungi paru-paru dari gesekan saat bernapas dinamakan...",
+        options: { A: "Bronkus", B: "Diafragma", C: "Pleura", D: "Trakea" },
+        answer: "C",
+        explanation: "Jawaban Benar: C (Pleura)"
+      },
+      {
+        question: "6. Pernapasan yang dominan menggunakan gerakan otot-otot di antara tulang rusuk dinamakan pernapasan...",
+        options: { A: "Perut", B: "Dada", C: "Lambung", D: "Otot" },
+        answer: "B",
+        explanation: "Jawaban Benar: B (Dada)"
+      },
+      {
+        question: "7. Ketika kita menghembuskan napas (ekspirasi), kondisi yang terjadi pada rongga dada adalah...",
+        options: { A: "Membesar karena diisi udara", B: "Mengecil & udara keluar paru-paru", C: "Mendatar dan menahan napas", D: "Terisi oleh air" },
+        answer: "B",
+        explanation: "Jawaban Benar: B (Mengecil dan udara keluar dari paru-paru)"
+      },
+      {
+        question: "8. Cabang-cabang yang lebih kecil dari bronkus di dalam paru-paru dinamakan...",
+        options: { A: "Trakea", B: "Alveolus", C: "Bronkiolus", D: "Faring" },
+        answer: "C",
+        explanation: "Jawaban Benar: C (Bronkiolus)"
+      },
+      {
+        question: "9. Penyebab utama penyakit TBC (Tuberkulosis) yang menyerang organ paru-paru manusia adalah...",
+        options: { A: "Debu jalanan", B: "Infeksi Mycobacterium tuberculosis", C: "Kebiasaan makan pedas", D: "Kekurangan minum air putih" },
+        answer: "B",
+        explanation: "Jawaban Benar: B (Infeksi bakteri Mycobacterium tuberculosis)"
+      },
+      {
+        question: "10. Penyakit pernapasan yang ditandai dengan peradangan pada dinding saluran pernapasan (bronkus) dinamakan...",
+        options: { A: "Bronkitis", B: "Diabetes", C: "Maag", D: "Rakitis" },
+        answer: "A",
+        explanation: "Jawaban Benar: A (Bronkitis)"
+      },
+      {
+        question: "11. Pembengkakan paru-paru karena kantung udara (alveolus) kemasukan cairan akibat infeksi sering disebut...",
+        options: { A: "Asma", B: "Pneumonia (paru-paru basah)", C: "Amandel", D: "Influenza" },
+        answer: "B",
+        explanation: "Jawaban Benar: B (Pneumonia / paru-paru basah)"
+      },
+      {
+        question: "12. Tindakan berikut yang paling efektif untuk menjaga kesehatan organ pernapasan dari polusi udara adalah...",
+        options: { A: "Gunakan masker di area berdebu", B: "Menahan napas saat di luar rumah", C: "Mengonsumsi makanan sangat pedas", D: "Membuka jendela saat ada asap" },
+        answer: "A",
+        explanation: "Jawaban Benar: A (Menggunakan masker saat di area berdebu)"
+      },
+      {
+        question: "13. Mengapa merokok sangat berbahaya bagi kesehatan sistem pernapasan?",
+        options: { A: "Membuat tenggorokan terasa harum", B: "Merusak jaringan paru-paru & alveolus", C: "Meningkatkan kapasitas oksigen", D: "Menguatkan otot diafragma" },
+        answer: "B",
+        explanation: "Jawaban Benar: B (Rokok merusak jaringan paru-paru dan alveolus)"
+      },
+      {
+        question: "14. Kegiatan berikut yang dapat meningkatkan kapasitas serta kekuatan paru-paru kita adalah...",
+        options: { A: "Tidur sepanjang hari", B: "Olahraga teratur (renang/lari)", C: "Duduk terlalu lama di kamar AC", D: "Bermain game tanpa istirahat" },
+        answer: "B",
+        explanation: "Jawaban Benar: B (Berolahraga teratur)"
+      },
+      {
+        question: "15. Di dalam paru-paru terdapat jutaan kantung udara kecil menyerupai gugusan buah anggur yang disebut...",
+        options: { A: "Trakea", B: "Alveolus", C: "Bronkus", D: "Faring" },
+        answer: "B",
+        explanation: "Jawaban Benar: B (Alveolus)"
+      }
+    ];
+
+    let currentQuestionIdx = 0;
+    let scoreA = 0;
+    let scoreB = 0;
+    let isQuestionLocked = false;
+
+    let prevTriggerStateA = false;
+    let prevTriggerStateB = false;
+
+    let lasers = [];
+    let particles = [];
+    let hands = null;
+
+    // DOM Elements
+    const canvasElement = document.getElementById('gameCanvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const videoElement = document.getElementById('webcam');
+
+    const scoreAEl = document.getElementById('scoreA');
+    const scoreBEl = document.getElementById('scoreB');
+    const detectedStatusA = document.getElementById('detectedStatusA');
+    const detectedStatusB = document.getElementById('detectedStatusB');
+    const triggerA = document.getElementById('triggerA');
+    const triggerB = document.getElementById('triggerB');
+
+    const questionNumEl = document.getElementById('questionNum');
+    const questionTextEl = document.getElementById('questionText');
+    const optTextA = document.getElementById('optTextA');
+    const optTextB = document.getElementById('optTextB');
+    const optTextC = document.getElementById('optTextC');
+    const optTextD = document.getElementById('optTextD');
+
+    const optContainerA = document.getElementById('optContainerA');
+    const optContainerB = document.getElementById('optContainerB');
+    const optContainerC = document.getElementById('optContainerC');
+    const optContainerD = document.getElementById('optContainerD');
+
+    const explanationBanner = document.getElementById('explanationBanner');
+    const explanationText = document.getElementById('explanationText');
+    const roundFeedback = document.getElementById('roundFeedback');
+
+    const cameraOverlay = document.getElementById('cameraStatusOverlay');
+    const gameOverModal = document.getElementById('gameOverModal');
+
+    function resizeCanvas() {
+      canvasElement.width = window.innerWidth;
+      canvasElement.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function loadQuestion(idx) {
+      isQuestionLocked = false;
+      const q = QUIZ_QUESTIONS[idx];
+
+      questionNumEl.textContent = `${idx + 1} / ${QUIZ_QUESTIONS.length}`;
+      questionTextEl.textContent = q.question;
+
+      optTextA.textContent = `A. ${q.options.A}`;
+      optTextB.textContent = `B. ${q.options.B}`;
+      optTextC.textContent = `C. ${q.options.C}`;
+      optTextD.textContent = `D. ${q.options.D}`;
+
+      [optContainerA, optContainerB, optContainerC, optContainerD].forEach(el => {
+        el.className = "option-card flex items-center p-4 bg-slate-900/90 border border-slate-700 rounded-xl relative";
+      });
+
+      explanationBanner.classList.add('hidden');
+      roundFeedback.textContent = "Bentuk Tangan Pistol 🫵 lalu Tembak ke Jawaban yang Benar!";
+      roundFeedback.className = "text-xs font-bold font-orbitron text-slate-300 mt-1 min-h-[18px]";
+    }
+
+    function fireLaser(team, startX, startY, targetOption) {
+      let targetEl;
+      if (targetOption === 'A') targetEl = optContainerA;
+      else if (targetOption === 'B') targetEl = optContainerB;
+      else if (targetOption === 'C') targetEl = optContainerC;
+      else if (targetOption === 'D') targetEl = optContainerD;
+
+      if (!targetEl) return;
+      const rect = targetEl.getBoundingClientRect();
+      const targetX = rect.left + rect.width / 2;
+      const targetY = rect.top + rect.height / 2;
+
+      lasers.push({
+        team: team,
+        x: startX,
+        y: startY,
+        targetX: targetX,
+        targetY: targetY,
+        progress: 0,
+        option: targetOption,
+        color: team === 'LEFT' ? '#00d2ff' : '#ff2b5b'
+      });
+    }
+
+    function evaluateShot(team, option) {
+      if (isQuestionLocked) return;
+      isQuestionLocked = true;
+
+      const q = QUIZ_QUESTIONS[currentQuestionIdx];
+      const isCorrect = option === q.answer;
+
+      const correctContainerMap = { A: optContainerA, B: optContainerB, C: optContainerC, D: optContainerD };
+      if (correctContainerMap[q.answer]) {
+        correctContainerMap[q.answer].classList.add('option-correct');
+      }
+
+      if (isCorrect) {
+        if (team === 'LEFT') {
+          scoreA += 10;
+          scoreAEl.textContent = scoreA;
+          roundFeedback.textContent = `💥 TIM A (KIRI) MENEMBAK BENAR PILIHAN ${option}! (+10)`;
+          roundFeedback.className = "text-xs font-bold font-orbitron text-cyan-400 mt-1 min-h-[18px]";
+          spawnParticles(canvasElement.width * 0.25, canvasElement.height * 0.5, '#00d2ff');
+        } else {
+          scoreB += 10;
+          scoreBEl.textContent = scoreB;
+          roundFeedback.textContent = `💥 TIM B (KANAN) MENEMBAK BENAR PILIHAN ${option}! (+10)`;
+          roundFeedback.className = "text-xs font-bold font-orbitron text-rose-400 mt-1 min-h-[18px]";
+          spawnParticles(canvasElement.width * 0.75, canvasElement.height * 0.5, '#ff2b5b');
+        }
+      } else {
+        const teamName = team === 'LEFT' ? 'TIM A (KIRI)' : 'TIM B (KANAN)';
+        roundFeedback.textContent = `❌ TEMBAKAN ${teamName} SALAH (${option})!`;
+        roundFeedback.className = "text-xs font-bold font-orbitron text-rose-500 mt-1 min-h-[18px]";
+      }
+
+      explanationText.textContent = q.explanation;
+      explanationBanner.classList.remove('hidden');
+
+      setTimeout(() => {
+        currentQuestionIdx++;
+        if (currentQuestionIdx < QUIZ_QUESTIONS.length) {
+          loadQuestion(currentQuestionIdx);
+        } else {
+          endQuiz();
+        }
+      }, 3000);
+    }
+
+    window.simulateShoot = function(team, option) {
+      const startX = team === 'LEFT' ? canvasElement.width * 0.15 : canvasElement.width * 0.85;
+      const startY = canvasElement.height * 0.8;
+      fireLaser(team, startX, startY, option);
+    };
+
+    function resetQuiz() {
+      currentQuestionIdx = 0;
+      scoreA = 0;
+      scoreB = 0;
+      scoreAEl.textContent = '0';
+      scoreBEl.textContent = '0';
+      gameOverModal.classList.add('hidden');
+      loadQuestion(0);
+    }
+
+    function endQuiz() {
+      isQuestionLocked = true;
+      document.getElementById('finalScoreA').textContent = scoreA;
+      document.getElementById('finalScoreB').textContent = scoreB;
+
+      const winnerTextEl = document.getElementById('winnerText');
+      if (scoreA > scoreB) {
+        winnerTextEl.textContent = "TIM A (KIRI) MENANG!";
+        winnerTextEl.className = "text-3xl md:text-4xl font-black font-orbitron mb-2 tracking-wider text-cyan-400 glow-blue";
+      } else if (scoreB > scoreA) {
+        winnerTextEl.textContent = "TIM B (KANAN) MENANG!";
+        winnerTextEl.className = "text-3xl md:text-4xl font-black font-orbitron mb-2 tracking-wider text-rose-500 glow-red";
+      } else {
+        winnerTextEl.textContent = "HASIL SERI / DRAW!";
+        winnerTextEl.className = "text-3xl md:text-4xl font-black font-orbitron mb-2 tracking-wider text-amber-300 glow-gold";
+      }
+      gameOverModal.classList.remove('hidden');
+    }
+
+    function renderLasersAndParticles() {
+      for (let i = lasers.length - 1; i >= 0; i--) {
+        let l = lasers[i];
+        l.progress += 0.08;
+
+        const curX = l.x + (l.targetX - l.x) * l.progress;
+        const curY = l.y + (l.targetY - l.y) * l.progress;
+
+        canvasCtx.save();
+        canvasCtx.strokeStyle = l.color;
+        canvasCtx.lineWidth = 6;
+        canvasCtx.shadowColor = l.color;
+        canvasCtx.shadowBlur = 15;
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(l.x, l.y);
+        canvasCtx.lineTo(curX, curY);
+        canvasCtx.stroke();
+        canvasCtx.restore();
+
+        if (l.progress >= 1) {
+          spawnParticles(l.targetX, l.targetY, l.color);
+          evaluateShot(l.team, l.option);
+          lasers.splice(i, 1);
+        }
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= p.decay;
+
+        if (p.alpha <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        canvasCtx.save();
+        canvasCtx.globalAlpha = p.alpha;
+        canvasCtx.fillStyle = p.color;
+        canvasCtx.beginPath();
+        canvasCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        canvasCtx.fill();
+        canvasCtx.restore();
+      }
+    }
+
+    function spawnParticles(x, y, color) {
+      for (let i = 0; i < 30; i++) {
+        particles.push({
+          x: x,
+          y: y,
+          vx: (Math.random() - 0.5) * 12,
+          vy: (Math.random() - 0.5) * 12,
+          size: Math.random() * 6 + 2,
+          color: color,
+          alpha: 1,
+          decay: Math.random() * 0.03 + 0.015
+        });
+      }
+    }
+
+    function checkAimedOption(aimX, aimY) {
+      const options = [
+        { id: 'A', el: optContainerA },
+        { id: 'B', el: optContainerB },
+        { id: 'C', el: optContainerC },
+        { id: 'D', el: optContainerD }
+      ];
+
+      for (let opt of options) {
+        const rect = opt.el.getBoundingClientRect();
+        if (aimX >= rect.left && aimX <= rect.right && aimY >= rect.top && aimY <= rect.bottom) {
+          return opt.id;
+        }
+      }
+      return null;
+    }
+
+    function drawGunReticle(x, y, color, isShooting, aimedOption) {
+      canvasCtx.save();
+      canvasCtx.strokeStyle = color;
+      canvasCtx.fillStyle = color;
+      canvasCtx.lineWidth = isShooting ? 4 : 2;
+
+      canvasCtx.beginPath();
+      canvasCtx.arc(x, y, isShooting ? 25 : 18, 0, Math.PI * 2);
+      canvasCtx.stroke();
+
+      canvasCtx.beginPath();
+      canvasCtx.arc(x, y, 4, 0, Math.PI * 2);
+      canvasCtx.fill();
+
+      if (aimedOption) {
+        canvasCtx.font = "bold 14px Orbitron, sans-serif";
+        canvasCtx.fillText(`TARGET: ${aimedOption}`, x + 25, y + 5);
+      }
+      canvasCtx.restore();
+    }
+
+    function onResults(results) {
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+      if (results.image) {
+        canvasCtx.translate(canvasElement.width, 0);
+        canvasCtx.scale(-1, 1);
+        canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+      }
+      canvasCtx.restore();
+
+      const midX = canvasElement.width / 2;
+
+      // Split Screen Line
+      canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      canvasCtx.setLineDash([8, 8]);
+      canvasCtx.lineWidth = 2;
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(midX, 0);
+      canvasCtx.lineTo(midX, canvasElement.height);
+      canvasCtx.stroke();
+      canvasCtx.setLineDash([]);
+
+      let statusA = "TIDAK DETEKSI";
+      let statusB = "TIDAK DETEKSI";
+      let isTriggerA = false;
+      let isTriggerB = false;
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        for (const landmarks of results.multiHandLandmarks) {
+          let sumX = 0;
+          landmarks.forEach(lm => sumX += lm.x);
+          let avgX = (1 - (sumX / landmarks.length)) * canvasElement.width;
+
+          const isLeftTeam = avgX < midX;
+          const color = isLeftTeam ? '#00d2ff' : '#ff2b5b';
+
+          const indexTipX = (1 - landmarks[8].x) * canvasElement.width;
+          const indexTipY = landmarks[8].y * canvasElement.height;
+
+          const thumbTipY = landmarks[4].y * canvasElement.height;
+          const indexPipY = landmarks[6].y * canvasElement.height;
+
+          const isTriggerPulled = thumbTipY > indexPipY;
+          const aimedOption = checkAimedOption(indexTipX, indexTipY);
+
+          drawGunReticle(indexTipX, indexTipY, color, isTriggerPulled, aimedOption);
+
+          if (isLeftTeam) {
+            statusA = aimedOption ? `INCAR (${aimedOption})` : "MENGARAH...";
+            isTriggerA = isTriggerPulled;
+
+            if (isTriggerPulled && !prevTriggerStateA && aimedOption && !isQuestionLocked) {
+              fireLaser('LEFT', indexTipX, indexTipY, aimedOption);
+            }
+          } else {
+            statusB = aimedOption ? `INCAR (${aimedOption})` : "MENGARAH...";
+            isTriggerB = isTriggerPulled;
+
+            if (isTriggerPulled && !prevTriggerStateB && aimedOption && !isQuestionLocked) {
+              fireLaser('RIGHT', indexTipX, indexTipY, aimedOption);
+            }
+          }
+        }
+      }
+
+      prevTriggerStateA = isTriggerA;
+      prevTriggerStateB = isTriggerB;
+
+      detectedStatusA.textContent = statusA;
+      triggerA.textContent = isTriggerA ? "💥 SHOOT!" : "🔫 READY";
+      triggerA.className = isTriggerA 
+        ? "text-xs font-bold px-2 py-0.5 rounded bg-cyan-500 text-slate-950 border border-cyan-400 animate-pulse"
+        : "text-xs font-bold px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/30";
+
+      detectedStatusB.textContent = statusB;
+      triggerB.textContent = isTriggerB ? "💥 SHOOT!" : "🔫 READY";
+      triggerB.className = isTriggerB 
+        ? "text-xs font-bold px-2 py-0.5 rounded bg-rose-500 text-slate-950 border border-rose-400 animate-pulse"
+        : "text-xs font-bold px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-500/30";
+
+      renderLasersAndParticles();
+    }
+
+    // INITALIZE MEDIAPIPE HANDS & USERMEDIA CAMERA
+    function initHands() {
+      hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+
+      hands.setOptions({
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      hands.onResults(onResults);
+    }
+
+    async function processVideoFrame() {
+      if (videoElement.readyState >= 2 && hands) {
+        await hands.send({ image: videoElement });
+      }
+      requestAnimationFrame(processVideoFrame);
+    }
+
+    async function initCamera() {
+      const spinner = document.getElementById('cameraSpinner');
+      const errIcon = document.getElementById('cameraErrorIcon');
+      const statusText = document.getElementById('cameraStatusText');
+      const subtext = document.getElementById('cameraStatusSubtext');
+
+      spinner.classList.remove('hidden');
+      errIcon.classList.add('hidden');
+      statusText.textContent = "Menginisialisasi Kamera...";
+
+      try {
+        if (!hands) initHands();
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 1280, height: 720, facingMode: 'user' },
+          audio: false
+        });
+
+        videoElement.srcObject = stream;
+        await videoElement.play();
+
+        cameraOverlay.classList.add('hidden');
+        processVideoFrame();
+      } catch (err) {
+        console.error("Gagal membuka kamera:", err);
+        spinner.classList.add('hidden');
+        errIcon.classList.remove('hidden');
+        statusText.textContent = "Kamera Tidak Terdeteksi / Diblokir";
+        subtext.innerHTML = "Akses kamera diblokir oleh iframe Google Sites atau izin browser.<br>Silakan klik tombol di bawah untuk main menggunakan tombol simulasi, atau pastikan izin kamera aktif pada browser.";
+      }
+    }
+
+    function startSimulatedMode() {
+      cameraOverlay.classList.add('hidden');
+      function animLoop() {
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        renderLasersAndParticles();
+        requestAnimationFrame(animLoop);
+      }
+      animLoop();
+    }
+
+    // Startup
+    loadQuestion(0);
+    initCamera();
+  </script>
+</body>
+</html>
